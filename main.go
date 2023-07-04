@@ -14,15 +14,17 @@ type loginData struct {
 }
 
 func main() {
-	const path = `Data/logins.csv`
-	rawData, rawTimes := loadData(path)
+	const loginPath = `Data/logins.csv`
+	const messagePath = `Data/chat.csv`
+	rawData, rawTimes := loadLoginData(loginPath)
+	rawMessages := loadMessageData(messagePath)
 	loginList := separateTimes(rawData, rawTimes)
+	playerMessages := messageCount(rawMessages)
 	timePlayed := calculateTimes(loginList)
-	writeToFile(timePlayed)
+	writeToFile(timePlayed, playerMessages)
 }
 
-func loadData(path string) ([]string, []string) {
-	fmt.Println("Loading data")
+func loadLoginData(path string) ([]string, []string) {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
@@ -43,6 +45,27 @@ func loadData(path string) ([]string, []string) {
 		data = append(data, line[messageLine])
 	}
 	return data, times
+}
+
+func loadMessageData(path string) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	raw, err := csvReader.ReadAll()
+	if err != nil {
+		panic(err)
+	}
+
+	const messageLine = 3
+	messages := []string{}
+	for _, line := range raw {
+		messages = append(messages, line[messageLine])
+	}
+	return messages
 }
 
 func separateTimes(data, times []string) map[string][]loginData {
@@ -80,7 +103,23 @@ func separateTimes(data, times []string) map[string][]loginData {
 		}
 		logins[playerNames[i]] = append(logins[playerNames[i]], loginInstance)
 	}
+
 	return logins
+}
+
+func messageCount(messages []string) map[string]int {
+	const startSeparator = "**["
+	const endSeparator = "]**"
+	playerMessageCounter := make(map[string]int)
+	for _, message := range messages {
+		if strings.Contains(message, startSeparator) && strings.Contains(message, endSeparator) {
+			nameStart := strings.Index(message, startSeparator) + len(startSeparator)
+			nameEnd := strings.LastIndex(message, endSeparator)
+			name := message[nameStart:nameEnd]
+			playerMessageCounter[name]++
+		}
+	}
+	return playerMessageCounter
 }
 
 func calculateTimes(loginList map[string][]loginData) map[string]time.Duration {
@@ -97,7 +136,7 @@ func calculateTimes(loginList map[string][]loginData) map[string]time.Duration {
 	return playerTimes
 }
 
-func writeToFile(timePlayed map[string]time.Duration) {
+func writeToFile(timePlayed map[string]time.Duration, messages map[string]int) {
 	const fileName = "timeplayed.txt"
 	file, err := os.Create(fileName)
 	if err != nil {
@@ -106,7 +145,7 @@ func writeToFile(timePlayed map[string]time.Duration) {
 	defer file.Close()
 
 	for name, time := range timePlayed {
-		_, err := fmt.Fprintln(file, name+" "+fmt.Sprint(time.Minutes()))
+		_, err := fmt.Fprintln(file, name+" "+fmt.Sprint(time.Minutes())+" "+fmt.Sprint(messages[name]))
 		if err != nil {
 			panic(err)
 		}
