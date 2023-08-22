@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -16,15 +17,18 @@ type loginData struct {
 func main() {
 	const loginPath = `Data/logins.csv`
 	const messagePath = `Data/chat.csv`
-	rawData, rawTimes := loadLoginData(loginPath)
-	rawMessages := loadMessageData(messagePath)
+	const names = "Data/deluvianames.txt"
+
+	validNames := readNames(names)
+	rawData, rawTimes := loadLoginData(loginPath, validNames)
+	rawMessages := loadMessageData(messagePath, validNames)
 	loginList := separateTimes(rawData, rawTimes)
 	playerMessages := messageCount(rawMessages)
 	timePlayed := calculateTimes(loginList)
 	writeToFile(timePlayed, playerMessages)
 }
 
-func loadLoginData(path string) ([]string, []string) {
+func loadLoginData(path string, validNames []string) ([]string, []string) {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
@@ -41,13 +45,15 @@ func loadLoginData(path string) ([]string, []string) {
 	const timeLine = 2
 	times, data := []string{}, []string{}
 	for _, line := range raw {
-		times = append(times, line[timeLine])
-		data = append(data, line[messageLine])
+		if validNames == nil || stringsContain(validNames, line[messageLine]) {
+			times = append(times, line[timeLine])
+			data = append(data, line[messageLine])
+		}
 	}
 	return data, times
 }
 
-func loadMessageData(path string) []string {
+func loadMessageData(path string, validNames []string) []string {
 	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
@@ -63,7 +69,9 @@ func loadMessageData(path string) []string {
 	const messageLine = 3
 	messages := []string{}
 	for _, line := range raw {
-		messages = append(messages, line[messageLine])
+		if validNames == nil || stringsContain(validNames, line[messageLine]) {
+			messages = append(messages, line[messageLine])
+		}
 	}
 	return messages
 }
@@ -136,6 +144,21 @@ func calculateTimes(loginList map[string][]loginData) map[string]time.Duration {
 	return playerTimes
 }
 
+func readNames(path string) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	lines := []string{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines
+}
+
 func writeToFile(timePlayed map[string]time.Duration, messages map[string]int) {
 	const fileName = "timeplayed.txt"
 	file, err := os.Create(fileName)
@@ -156,4 +179,13 @@ func writeToFile(timePlayed map[string]time.Duration, messages map[string]int) {
 		panic(err)
 	}
 	fmt.Println("Successfully saved data to " + fileName)
+}
+
+func stringsContain(splice []string, key string) bool {
+	for _, element := range splice {
+		if strings.Contains(key, element) {
+			return true
+		}
+	}
+	return false
 }
